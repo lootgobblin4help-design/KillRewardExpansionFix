@@ -1,22 +1,15 @@
 // ============================================================
-// KillReward → Expansion Market Fix
+// KillReward → Expansion Market Fix (Bank Version)
 // 
-// KillReward calls increasePlayerCurrency() which is a
-// Dr. Jones Trader function. Expansion Market never defines it
-// so the call does nothing. This mod defines the missing
-// function and redirects it to Expansion's own SpawnMoney().
-// 
-// SpawnMoney() handles denominations, stacking, and
-// inventory-full fallback automatically.
+// Redirects KillReward's increasePlayerCurrency() directly
+// into the player's Expansion ATM bank account balance.
+// No physical cash is spawned — money goes straight to bank.
 // 
 // Author: LOOTGOBBLIN
-// Verified against: salutesh/DayZ-Expansion-Scripts
 // ============================================================
 
 modded class PlayerBase
 {
-	// This function is called by KillReward but only exists
-	// in Dr. Jones Trader. We define it here for Expansion.
 	void increasePlayerCurrency(int amount)
 	{
 		// Server only
@@ -26,28 +19,42 @@ modded class PlayerBase
 		if (!this || amount <= 0)
 			return;
 
-		string playerName = GetIdentity().GetName();
+		PlayerIdentity identity = GetIdentity();
+		if (!identity)
+			return;
 
-		Print("[KillReward Fix] Rewarding $" + amount + " to: " + playerName);
+		string playerID   = identity.GetId();
+		string playerName = identity.GetName();
 
-		// Get Expansion Market module instance
+		Print("[KillReward Fix] Depositing $" + amount + " to bank for: " + playerName);
+
+		// Get Expansion Market module
 		ExpansionMarketModule marketModule = ExpansionMarketModule.GetInstance();
-
 		if (!marketModule)
 		{
 			Print("[KillReward Fix] ERROR: ExpansionMarketModule not found for: " + playerName);
 			return;
 		}
 
-		// SpawnMoney handles denominations, existing stacks,
-		// and inventory-full overflow automatically
-		EntityAI parent = this;
-		marketModule.SpawnMoney(this, parent, amount);
+		// Get or create the player's ATM data
+		ExpansionMarketATM_Data atmData = marketModule.GetPlayerATMData(playerID);
+		if (!atmData)
+		{
+			// Player has never used the ATM — create their record
+			marketModule.CreateATMData(identity);
+			atmData = marketModule.GetPlayerATMData(playerID);
+		}
 
-		// CheckSpawn handles any items that couldn't fit
-		// in inventory (drops to ground near player)
-		marketModule.CheckSpawn(this, parent);
+		if (!atmData)
+		{
+			Print("[KillReward Fix] ERROR: Could not get/create ATM data for: " + playerName);
+			return;
+		}
 
-		Print("[KillReward Fix] SUCCESS: Spawned $" + amount + " for: " + playerName);
+		// Add money directly to bank balance and save
+		atmData.AddMoney(amount);
+		atmData.Save();
+
+		Print("[KillReward Fix] SUCCESS: Deposited $" + amount + " to bank for: " + playerName);
 	}
 }
