@@ -14,7 +14,7 @@
 //   ExpansionMarketATM_Data::RemoveMoney(int amount)
 //   ExpansionMarketATM_Data::Save()
 //
-// Load order: @KillReward → @DayZ-Expansion-Bundle → @KillRewardExpansionFix
+// Load order: @KillReward -> @DayZ-Expansion-Bundle -> @KillRewardExpansionFix
 //
 // Author: LOOTGOBBLIN
 // ============================================================
@@ -23,17 +23,14 @@
 
 // ------------------------------------------------------------
 // Internal helper: deposit into ATM bank (server-side only).
-// Returns true on success, false on any failure — caller can
-// decide whether to fall back to physical cash.
+// Returns true on success, false on any failure.
 // ------------------------------------------------------------
 static bool KRFix_ATM_Deposit(PlayerBase player, int amount)
 {
 	if (!player || !player.GetIdentity() || amount <= 0)
 		return false;
 
-	ExpansionMarketModule marketModule = ExpansionMarketModule.Cast(
-		CF_ModuleCoreManager.Get(ExpansionMarketModule)
-	);
+	ExpansionMarketModule marketModule = ExpansionMarketModule.Cast(CF_ModuleCoreManager.Get(ExpansionMarketModule));
 	if (!marketModule)
 	{
 		Print("[KillReward Fix] ERROR: ExpansionMarketModule not found!");
@@ -41,13 +38,12 @@ static bool KRFix_ATM_Deposit(PlayerBase player, int amount)
 	}
 
 	PlayerIdentity identity = player.GetIdentity();
-	string playerID   = identity.GetId();
+	string playerID = identity.GetId();
 	string playerName = identity.GetName();
 
 	ExpansionMarketATM_Data atmData = marketModule.GetPlayerATMData(playerID);
 	if (!atmData)
 	{
-		// First time at the ATM — create the player's record
 		marketModule.CreateATMData(identity);
 		atmData = marketModule.GetPlayerATMData(playerID);
 	}
@@ -58,9 +54,8 @@ static bool KRFix_ATM_Deposit(PlayerBase player, int amount)
 		return false;
 	}
 
-	// Respect the server's configured maximum deposit cap
 	int maxDeposit = GetExpansionSettings().GetMarket().MaxDepositMoney;
-	int space      = maxDeposit - atmData.MoneyDeposited;
+	int space = maxDeposit - atmData.MoneyDeposited;
 
 	if (space <= 0)
 	{
@@ -70,7 +65,7 @@ static bool KRFix_ATM_Deposit(PlayerBase player, int amount)
 
 	if (amount > space)
 	{
-		Print("[KillReward Fix] INFO: Clamping deposit " + amount + " → " + space + " for " + playerName);
+		Print("[KillReward Fix] INFO: Clamping deposit " + amount + " to " + space + " for " + playerName);
 		amount = space;
 	}
 
@@ -90,9 +85,7 @@ static bool KRFix_ATM_Deduct(PlayerBase player, int amount)
 	if (!player || !player.GetIdentity() || amount <= 0)
 		return false;
 
-	ExpansionMarketModule marketModule = ExpansionMarketModule.Cast(
-		CF_ModuleCoreManager.Get(ExpansionMarketModule)
-	);
+	ExpansionMarketModule marketModule = ExpansionMarketModule.Cast(CF_ModuleCoreManager.Get(ExpansionMarketModule));
 	if (!marketModule)
 	{
 		Print("[KillReward Fix] ERROR: ExpansionMarketModule not found!");
@@ -100,19 +93,19 @@ static bool KRFix_ATM_Deduct(PlayerBase player, int amount)
 	}
 
 	PlayerIdentity identity = player.GetIdentity();
-	string playerID   = identity.GetId();
+	string playerID = identity.GetId();
 	string playerName = identity.GetName();
 
 	ExpansionMarketATM_Data atmData = marketModule.GetPlayerATMData(playerID);
 	if (!atmData)
 	{
-		Print("[KillReward Fix] WARNING: No ATM data for " + playerName + " — cannot deduct.");
+		Print("[KillReward Fix] WARNING: No ATM data for " + playerName + " - cannot deduct.");
 		return false;
 	}
 
 	if (amount > atmData.MoneyDeposited)
 	{
-		Print("[KillReward Fix] INFO: Clamping deduction " + amount + " → " + atmData.MoneyDeposited + " for " + playerName);
+		Print("[KillReward Fix] INFO: Clamping deduction " + amount + " to " + atmData.MoneyDeposited + " for " + playerName);
 		amount = atmData.MoneyDeposited;
 	}
 
@@ -127,7 +120,7 @@ static bool KRFix_ATM_Deduct(PlayerBase player, int amount)
 }
 
 // ------------------------------------------------------------
-// Modded KillReward — override LoseMoney (negative PvP penalty)
+// Modded KillReward - override LoseMoney (negative PvP penalty)
 // Original: killerVictim.deductPlayerCurrency(LoseMoney)
 // Fixed:    deduct from ATM bank instead
 // ------------------------------------------------------------
@@ -139,7 +132,6 @@ modded class KillReward
 
 		if (!KRFix_ATM_Deduct(killerVictim, amount))
 		{
-			// Safe fallback to original physical deduction
 			Print("[KillReward Fix] LoseMoney fallback to deductPlayerCurrency for " + killerIdentity.GetId());
 			killerVictim.deductPlayerCurrency(amount);
 		}
@@ -147,7 +139,7 @@ modded class KillReward
 }
 
 // ------------------------------------------------------------
-// Modded PlayerBase — override increasePlayerCurrency so all
+// Modded PlayerBase - override increasePlayerCurrency so all
 // KillReward milestone payouts deposit to ATM instead of
 // spawning physical cash in the player's inventory.
 //
@@ -158,14 +150,12 @@ modded class PlayerBase
 {
 	override void increasePlayerCurrency(int amount)
 	{
-		// Client side: pass through as normal (cosmetic/UI calls)
 		if (!GetGame().IsServer())
 		{
 			super.increasePlayerCurrency(amount);
 			return;
 		}
 
-		// Try ATM deposit — fall back to physical cash if it fails
 		if (!KRFix_ATM_Deposit(this, amount))
 		{
 			Print("[KillReward Fix] increasePlayerCurrency fallback to physical cash (" + amount + ")");
